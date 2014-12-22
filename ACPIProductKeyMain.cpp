@@ -6,63 +6,6 @@
 
 CONST DWORD FirmwareTableProviderSignature_ACPI = 'ACPI';
 
-void showACPITable(DWORD FirmwareTableID, BOOL verbose);
-
-int _tmain(int argc, _TCHAR* argv[])
-{
-	PVOID pFirmwareTableBuffer = NULL;
-	DWORD BufferSize = NULL;
-	UINT  BytesWritten;
-	DWORD FirmwareTableID;
-	DWORD *pFirmwareTableID;
-	BOOL  verbose = FALSE;
-
-	if (argc > 1) {
-		if (wcscmp(argv[1], _T("-v")) == 0)
-			verbose = TRUE;
-	}
-
-	// get buffer size, call with null values
-	BufferSize = EnumSystemFirmwareTables(FirmwareTableProviderSignature_ACPI,
-		NULL,
-		NULL);
-
-	// alloc memory
-	pFirmwareTableBuffer = malloc(BufferSize);
-
-	// enum acpi tables
-	BytesWritten = EnumSystemFirmwareTables(FirmwareTableProviderSignature_ACPI,
-		pFirmwareTableBuffer,
-		BufferSize);
-
-	// enumerate ACPI tables, look for MSDM table
-	pFirmwareTableID = (DWORD*)pFirmwareTableBuffer;
-	const DWORD SearchMSDMFirmwareTableID = _byteswap_ulong('MSDM');
-
-	if (verbose) printf("Found ACPI Tables: ");
-	for (UINT i = 0; i < BytesWritten / 4; i++) // 4 == bytesize of DWORD
-	{
-		FirmwareTableID = *pFirmwareTableID;
-		if (verbose) printf("%.*s ", 4, pFirmwareTableID);
-		if (FirmwareTableID == SearchMSDMFirmwareTableID) {
-			if (verbose) printf("\n");
-			showACPITable(FirmwareTableID, verbose);
-		}
-		pFirmwareTableID++;
-	}
-
-	free(pFirmwareTableBuffer);
-	pFirmwareTableBuffer = NULL;
-
-#ifdef _DEBUG
-	printf("\n\nPress [Enter] to exit . . .");
-	fflush(stdout);
-	getchar();
-#endif
-
-	return 0;
-}
-
 void showACPITable(DWORD FirmwareTableID, BOOL verbose)
 {
 	PVOID pFirmwareTableBuffer = NULL;
@@ -166,4 +109,64 @@ void showACPITable(DWORD FirmwareTableID, BOOL verbose)
 	free(pFirmwareTableBuffer);
 	pFirmwareTableBuffer = NULL;
 
+}
+
+void enumACPITables(BOOL verbose) {
+	PVOID pFirmwareTableBuffer = NULL;
+	DWORD BufferSize = NULL;
+	UINT  BytesWritten;
+	DWORD FirmwareTableID;
+	DWORD *pFirmwareTableID;
+
+	// get buffer size, call with null values
+	BufferSize = EnumSystemFirmwareTables(FirmwareTableProviderSignature_ACPI,
+		NULL,
+		NULL);
+
+	// alloc memory
+	pFirmwareTableBuffer = malloc(BufferSize);
+
+	// enum acpi tables
+	BytesWritten = EnumSystemFirmwareTables(FirmwareTableProviderSignature_ACPI,
+		pFirmwareTableBuffer,
+		BufferSize);
+
+	// enumerate ACPI tables, look for MSDM table
+	pFirmwareTableID = (DWORD*)pFirmwareTableBuffer;
+	const DWORD SearchMSDMFirmwareTableID = _byteswap_ulong('MSDM');
+
+	if (verbose) printf("Found ACPI Tables: ");
+	for (UINT i = 0; i < BytesWritten / 4; i++) // 4 == bytesize of DWORD
+	{
+		FirmwareTableID = *pFirmwareTableID;
+		if (verbose) printf("%.*s ", 4, pFirmwareTableID);
+		if (FirmwareTableID == SearchMSDMFirmwareTableID) {
+			if (verbose) printf("\n");
+			showACPITable(FirmwareTableID, verbose);
+		}
+		pFirmwareTableID++;
+	}
+
+	free(pFirmwareTableBuffer);
+	pFirmwareTableBuffer = NULL;
+}
+
+int _tmain(int argc, _TCHAR* argv[])
+{
+	BOOL  verbose = FALSE;
+
+	if (argc > 1) {
+		if (wcscmp(argv[1], _T("-v")) == 0)
+			verbose = TRUE;
+	}
+
+	enumACPITables(verbose);
+
+#ifdef _DEBUG
+	printf("\n\nPress [Enter] to exit . . .");
+	fflush(stdout);
+	getchar();
+#endif
+
+	return 0;
 }
