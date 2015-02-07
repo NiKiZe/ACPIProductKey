@@ -1,4 +1,13 @@
+#ifndef ACPI_HEADER_INCLUDE_GUARD
+#define ACPI_HEADER_INCLUDE_GUARD
+
+
+#include <Windows.h>
 #include <stdint.h>
+#include <memory>
+#include <vector>
+#include <ostream>
+
 /**
 * An ACPI description header
 *
@@ -6,26 +15,54 @@
 * description tables.
 * Copy from iPXE project Released under GPL 2
 */
-struct acpi_table_header {
-	/** ACPI signature (4 ASCII characters) */
-	uint32_t signature;
-	/** Length of table, in bytes, including header */
-	uint32_t length;
-	/** ACPI Specification minor version number */
-	uint8_t revision;
-	/** To make sum of entire table == 0 */
-	uint8_t checksum;
-	/** OEM identification */
-	char oem_id[6];
-	/** OEM table identification */
-	char oem_table_id[8];
-	/** OEM revision number */
-	uint32_t oem_revision;
-	/** ASL compiler vendor ID */
-	char asl_compiler_id[4];
-	/** ASL compiler revision number */
-	uint32_t asl_compiler_revision;
-};
+//---------------------------------------------------------------------------
+    class AcpiTable 
+//---------------------------------------------------------------------------
+    {
+        static const DWORD acpiFirmwareTableProviderSignature = 'ACPI';
+
+
+    public:
+
+        typedef std::shared_ptr<AcpiTable> Ptr;
+
+        static DWORD getProviderSignature() { return acpiFirmwareTableProviderSignature; }
+
+        struct Header
+        {
+            /** ACPI signature (4 ASCII characters) */
+            uint32_t signature;
+            /** Length of table, in bytes, including header */
+            uint32_t length;
+            /** ACPI Specification minor version number */
+            uint8_t revision;
+            /** To make sum of entire table == 0 */
+            uint8_t checksum;
+            /** OEM identification */
+            char oem_id[6];
+            /** OEM table identification */
+            char oem_table_id[8];
+            /** OEM revision number */
+            uint32_t oem_revision;
+            /** ASL compiler vendor ID */
+            char asl_compiler_id[4];
+            /** ASL compiler revision number */
+            uint32_t asl_compiler_revision;
+        };
+
+
+        union
+        {
+            char *pBuffer = nullptr;
+            Header *pHeader;
+        }
+        data;
+
+
+        ~AcpiTable();
+        static Ptr getTable( DWORD firmwareTableId );
+    };
+
 
 
 /*
@@ -52,13 +89,86 @@ licensing kit by first visiting the Microsoft OEM website
 */
 
 /* Future types of this struct is to be expected */
-struct acpi_MSDM_1 {
-	struct acpi_table_header hdr;
 
-	UINT Version;
-	UINT Reserved;
-	UINT DataType;
-	UINT DataReserved;
-	UINT DataLength;
-	char ProductKey[29];
-};
+//---------------------------------------------------------------------------
+    struct AcpiMsdm_Type1 : AcpiTable::Header
+//---------------------------------------------------------------------------
+    {
+        uint32_t            Version;
+        uint32_t            Reserved;
+        uint32_t            DataType;
+        uint32_t            DataReserved;
+        uint32_t            DataLength;
+        char                ProductKey[29];
+
+
+        AcpiMsdm_Type1( AcpiTable const &rBase );
+    };
+
+
+
+    std::ostream& operator<< (std::ostream& rStream, AcpiMsdm_Type1 const &rData);
+    std::ostream& operator<< (std::ostream& rStream, AcpiTable::Header const &rHeader);
+
+
+
+//---------------------------------------------------------------------------
+    struct AcpiTableQuery
+//---------------------------------------------------------------------------
+    {
+        enum ULONG 
+        { 
+            msDigitalLicenceId = 'MSDM', 
+            msSoftwareLicenceId = 'SLIC',
+            apicId = 'APIC',
+            //testTableId = 'FACP',
+        };
+
+
+        enum 
+        {
+            FLAG_verbose = 0x01,
+            FLAG_cmd_generate = 0x02,
+        };
+
+
+        typedef std::vector<DWORD> Tables;
+
+
+        AcpiTableQuery();
+
+
+        void dumpTables( DWORD requesteTableId, unsigned flags );
+        bool hasTable( ULONG tableId );
+        Tables queryTables( std::initializer_list<ULONG> const &rTableIds );
+
+
+        template<typename TABLE>
+        std::shared_ptr<TABLE> obtainTableCopy( ULONG tableId )
+        {
+            typedef std::shared_ptr<TABLE> TablePtr;
+
+            auto swapped = _byteswap_ulong( tableId );
+
+            TablePtr pT;
+
+            if (hasTable(tableId))
+                pT = TablePtr( new TABLE(*AcpiTable::getTable(swapped)) );
+
+            return pT;
+        }
+
+
+    private:
+
+        Tables tables;
+        Tables enumerateTables();
+    };
+
+
+
+
+
+
+
+#endif
